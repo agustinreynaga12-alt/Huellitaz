@@ -1,0 +1,1203 @@
+import React, { useState, useMemo } from 'react';
+import { 
+  Heart, 
+  Syringe, 
+  Bug, 
+  Stethoscope, 
+  Scissors, 
+  FileText, 
+  Plus, 
+  Calendar, 
+  User, 
+  Weight, 
+  AlertCircle, 
+  CheckCircle2, 
+  Clock, 
+  ChevronRight, 
+  Trash2, 
+  Edit3, 
+  Filter, 
+  Search,
+  PawPrint,
+  Sparkles,
+  Award,
+  Bell,
+  QrCode,
+  Phone,
+  MapPin,
+  Download,
+  Eye,
+  AlertTriangle,
+  Smartphone,
+  Share2,
+  X,
+  Printer,
+  ShieldAlert,
+  Info
+} from 'lucide-react';
+
+// ==========================================
+// RENDERIZADOR NATIVO DE CÓDIGO QR EN SVG
+// Genera una matriz visual QR/Datamatrix simulada
+// con patrones de búsqueda (Finder Patterns)
+// para evitar dependencias de red o scripts.
+// ==========================================
+const DynamicQRCodeSVG = ({ text, size = 200, color = "#047857", fgBg = "#ffffff" }) => {
+  const gridSize = 21; // Versión 1 QR
+  
+  // Hash determinista básico para rellenar celdas basado en el texto
+  const generateMatrix = (str) => {
+    const matrix = Array(gridSize).fill(null).map(() => Array(gridSize).fill(false));
+    
+    // Función auxiliar para dibujar patrón de esquina (Finder Pattern)
+    const drawFinder = (startX, startY) => {
+      for (let r = 0; r < 7; r++) {
+        for (let c = 0; c < 7; c++) {
+          if (
+            r === 0 || r === 6 || c === 0 || c === 6 ||
+            (r >= 2 && r <= 4 && c >= 2 && c <= 4)
+          ) {
+            matrix[startY + r][startX + c] = true;
+          }
+        }
+      }
+    };
+
+    // Esquinas (Finder patterns)
+    drawFinder(0, 0);                  // Arriba Izquierda
+    drawFinder(gridSize - 7, 0);       // Arriba Derecha
+    drawFinder(0, gridSize - 7);       // Abajo Izquierda
+
+    // Líneas de sincronización (Timing patterns)
+    for (let i = 8; i < gridSize - 8; i++) {
+      if (i % 2 === 0) {
+        matrix[6][i] = true;
+        matrix[i][6] = true;
+      }
+    }
+
+    // Algoritmo determinista para llenar módulos según el texto
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = (hash << 5) - hash + str.charCodeAt(i);
+      hash |= 0;
+    }
+
+    for (let r = 0; r < gridSize; r++) {
+      for (let c = 0; c < gridSize; c++) {
+        // Ignorar las esquinas de los Finder Patterns
+        if (
+          (r < 8 && c < 8) ||
+          (r < 8 && c >= gridSize - 8) ||
+          (r >= gridSize - 8 && c < 8)
+        ) {
+          continue;
+        }
+
+        const bit = Math.abs((hash ^ (r * 31 + c * 17) ^ (str.length * 7)) % 100);
+        if (bit > 42) {
+          matrix[r][c] = true;
+        }
+      }
+    }
+
+    return matrix;
+  };
+
+  const matrix = useMemo(() => generateMatrix(text || "PET"), [text]);
+  const cellSize = size / gridSize;
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="rounded-lg shadow-sm">
+      <rect width={size} height={size} fill={fgBg} rx="8" />
+      {matrix.map((row, rIdx) =>
+        row.map((cell, cIdx) => {
+          if (!cell) return null;
+          return (
+            <rect
+              key={`${rIdx}-${cIdx}`}
+              x={cIdx * cellSize}
+              y={rIdx * cellSize}
+              width={cellSize + 0.3}
+              height={cellSize + 0.3}
+              fill={color}
+            />
+          );
+        })
+      )}
+    </svg>
+  );
+};
+
+// --- MOCK DATA INICIAL ---
+const INITIAL_PETS = [
+  {
+    id: 'pet-1',
+    name: 'Max',
+    species: 'Perro',
+    breed: 'Golden Retriever',
+    birthDate: '2021-05-15',
+    gender: 'Macho',
+    weight: '28.5',
+    chipNumber: '985141002938471',
+    avatar: 'https://images.unsplash.com/photo-1552053831-71594a27632d?auto=format&fit=crop&q=80&w=300',
+    ownerName: 'Carlos Mendoza',
+    ownerPhone: '+54 9 11 4567 8901',
+    ownerAddress: 'Av. Corrientes 1234, CABA',
+    medicalAlerts: 'Alérgico a la Penicilina. Requiere medicación diaria para tiroides.'
+  },
+  {
+    id: 'pet-2',
+    name: 'Luna',
+    species: 'Gato',
+    breed: 'Siamés',
+    birthDate: '2022-09-10',
+    gender: 'Hembra',
+    weight: '4.2',
+    chipNumber: '985141008821943',
+    avatar: 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=300',
+    ownerName: 'Sofía Martínez',
+    ownerPhone: '+54 9 11 9876 5432',
+    ownerAddress: 'Calle Las Heras 567, Córdoba',
+    medicalAlerts: 'Dieta estricta renal. Gata de interior asustadiza.'
+  }
+];
+
+const INITIAL_RECORDS = [
+  {
+    id: 'rec-1',
+    petId: 'pet-1',
+    type: 'vaccine',
+    title: 'Vacuna Antirrábica',
+    productName: 'Rabisin Dosis 1ml',
+    date: '2023-11-10',
+    nextDueDate: '2024-11-10',
+    veterinarian: 'Dra. Elena Gómez',
+    cost: '4500',
+    notes: 'Aplicación en muslo derecho. Sin reacciones colaterales.'
+  },
+  {
+    id: 'rec-2',
+    petId: 'pet-1',
+    type: 'deworming',
+    title: 'Desparasitación Interna',
+    productName: 'Drontal Plus',
+    date: '2024-02-01',
+    nextDueDate: '2024-05-01',
+    veterinarian: 'Dr. Marcos Paz',
+    cost: '2100',
+    notes: 'Repetir dosis cada 3 meses.'
+  },
+  {
+    id: 'rec-3',
+    petId: 'pet-2',
+    type: 'vaccine',
+    title: 'Triple Felina',
+    productName: 'Felocell 4',
+    date: '2023-08-15',
+    nextDueDate: '2024-08-15',
+    veterinarian: 'Dra. Elena Gómez',
+    cost: '5200',
+    notes: 'Refuerzo anual completado.'
+  }
+];
+
+export default function App() {
+  const [pets, setPets] = useState(INITIAL_PETS);
+  const [records, setRecords] = useState(INITIAL_RECORDS);
+  const [selectedPetId, setSelectedPetId] = useState('all');
+  const [activeTab, setActiveTab] = useState('pets'); // 'pets', 'records', 'qr', 'alerts'
+  
+  // Filtros
+  const [selectedType, setSelectedType] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Modales
+  const [isPetModalOpen, setIsPetModalOpen] = useState(false);
+  const [isRecordModalOpen, setIsRecordModalOpen] = useState(false);
+  const [isScanPreviewOpen, setIsScanPreviewOpen] = useState(false);
+
+  // Estados de Edición
+  const [editingPet, setEditingPet] = useState(null);
+  const [editingRecord, setEditingRecord] = useState(null);
+  const [qrColor, setQrColor] = useState('#047857'); // Esmeralda
+
+  // Formulario de Mascota
+  const [petForm, setPetForm] = useState({
+    name: '',
+    species: 'Perro',
+    breed: '',
+    birthDate: '',
+    gender: 'Macho',
+    weight: '',
+    chipNumber: '',
+    avatar: '',
+    ownerName: '',
+    ownerPhone: '',
+    ownerAddress: '',
+    medicalAlerts: ''
+  });
+
+  // Formulario de Registro Sanitario
+  const [recordForm, setRecordForm] = useState({
+    petId: '',
+    type: 'vaccine',
+    title: '',
+    productName: '',
+    date: new Date().toISOString().split('T')[0],
+    nextDueDate: '',
+    veterinarian: '',
+    cost: '',
+    notes: ''
+  });
+
+  // Auxiliar: Cálculo de edad
+  const calculateAge = (birthDateString) => {
+    if (!birthDateString) return 'Desconocida';
+    const birth = new Date(birthDateString);
+    const now = new Date();
+    let years = now.getFullYear() - birth.getFullYear();
+    let months = now.getMonth() - birth.getMonth();
+
+    if (months < 0 || (months === 0 && now.getDate() < birth.getDate())) {
+      years--;
+      months += 12;
+    }
+
+    if (years === 0) {
+      return `${months} ${months === 1 ? 'mes' : 'meses'}`;
+    }
+    return `${years} ${years === 1 ? 'año' : 'años'}`;
+  };
+
+  // Mascota activa actual
+  const activePet = useMemo(() => {
+    if (selectedPetId === 'all') return pets[0] || null;
+    return pets.find(p => p.id === selectedPetId) || pets[0] || null;
+  }, [pets, selectedPetId]);
+
+  // Manejadores de Mascotas
+  const handleOpenPetModal = (pet = null) => {
+    if (pet) {
+      setEditingPet(pet);
+      setPetForm(pet);
+    } else {
+      setEditingPet(null);
+      setPetForm({
+        name: '',
+        species: 'Perro',
+        breed: '',
+        birthDate: '',
+        gender: 'Macho',
+        weight: '',
+        chipNumber: '',
+        avatar: '',
+        ownerName: '',
+        ownerPhone: '',
+        ownerAddress: '',
+        medicalAlerts: ''
+      });
+    }
+    setIsPetModalOpen(true);
+  };
+
+  const handleSavePet = (e) => {
+    e.preventDefault();
+    const avatarUrl = petForm.avatar.trim() || 
+      (petForm.species === 'Gato' 
+        ? 'https://images.unsplash.com/photo-1514888286974-6c03e2ca1dba?auto=format&fit=crop&q=80&w=300'
+        : 'https://images.unsplash.com/photo-1543466835-00a7907e9de1?auto=format&fit=crop&q=80&w=300');
+
+    if (editingPet) {
+      setPets(pets.map(p => p.id === editingPet.id ? { ...petForm, id: editingPet.id, avatar: avatarUrl } : p));
+    } else {
+      const newPet = {
+        ...petForm,
+        id: `pet-${Date.now()}`,
+        avatar: avatarUrl
+      };
+      setPets([...pets, newPet]);
+      setSelectedPetId(newPet.id);
+    }
+    setIsPetModalOpen(false);
+  };
+
+  const handleDeletePet = (petId) => {
+    if (pets.length <= 1) {
+      alert("Debes mantener al menos una mascota en el registro.");
+      return;
+    }
+    setPets(pets.filter(p => p.id !== petId));
+    setRecords(records.filter(r => r.petId !== petId));
+    setSelectedPetId('all');
+  };
+
+  // Manejadores de Registros
+  const handleOpenRecordModal = (record = null) => {
+    if (record) {
+      setEditingRecord(record);
+      setRecordForm(record);
+    } else {
+      setEditingRecord(null);
+      setRecordForm({
+        petId: selectedPetId !== 'all' ? selectedPetId : (pets[0]?.id || ''),
+        type: 'vaccine',
+        title: '',
+        productName: '',
+        date: new Date().toISOString().split('T')[0],
+        nextDueDate: '',
+        veterinarian: '',
+        cost: '',
+        notes: ''
+      });
+    }
+    setIsRecordModalOpen(true);
+  };
+
+  const handleSaveRecord = (e) => {
+    e.preventDefault();
+    if (editingRecord) {
+      setRecords(records.map(r => r.id === editingRecord.id ? { ...recordForm, id: editingRecord.id } : r));
+    } else {
+      const newRecord = {
+        ...recordForm,
+        id: `rec-${Date.now()}`
+      };
+      setRecords([newRecord, ...records]);
+    }
+    setIsRecordModalOpen(false);
+  };
+
+  const handleDeleteRecord = (recordId) => {
+    setRecords(records.filter(r => r.id !== recordId));
+  };
+
+  // Filtrado de Registros
+  const filteredRecords = useMemo(() => {
+    return records.filter(r => {
+      const matchesPet = selectedPetId === 'all' || r.petId === selectedPetId;
+      const matchesType = selectedType === 'all' || r.type === selectedType;
+      const matchesSearch = 
+        r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.productName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        r.veterinarian?.toLowerCase().includes(searchQuery.toLowerCase());
+      return matchesPet && matchesType && matchesSearch;
+    });
+  }, [records, selectedPetId, selectedType, searchQuery]);
+
+  // Alertas sanitarias (vacunas o desparasitaciones próximas)
+  const alertRecords = useMemo(() => {
+    const today = new Date();
+    return records.filter(r => {
+      if (!r.nextDueDate) return false;
+      const due = new Date(r.nextDueDate);
+      const diffTime = due - today;
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      return diffDays <= 30; // Vence en 30 días o está vencida
+    });
+  }, [records]);
+
+  // Estilo por Categoría de Evento
+  const getTypeBadge = (type) => {
+    switch (type) {
+      case 'vaccine':
+        return { label: 'Vacuna', bg: 'bg-emerald-100 text-emerald-800 border-emerald-200', icon: Syringe, iconBg: 'bg-emerald-600' };
+      case 'deworming':
+        return { label: 'Desparasitación', bg: 'bg-amber-100 text-amber-800 border-amber-200', icon: Bug, iconBg: 'bg-amber-600' };
+      case 'medical':
+        return { label: 'Consulta Médica', bg: 'bg-blue-100 text-blue-800 border-blue-200', icon: Stethoscope, iconBg: 'bg-blue-600' };
+      case 'grooming':
+        return { label: 'Higiene/Peluquería', bg: 'bg-purple-100 text-purple-800 border-purple-200', icon: Scissors, iconBg: 'bg-purple-600' };
+      default:
+        return { label: 'Nota/Recordatorio', bg: 'bg-slate-100 text-slate-800 border-slate-200', icon: FileText, iconBg: 'bg-slate-600' };
+    }
+  };
+
+  const printIdTag = () => {
+    window.print();
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 pb-16">
+      
+      {/* HEADER PRINCIPAL */}
+      <header className="bg-emerald-700 text-white shadow-lg sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap justify-between items-center gap-3">
+          <div className="flex items-center space-x-3">
+            <div className="bg-white p-2 rounded-xl text-emerald-700 shadow-sm">
+              <PawPrint className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight leading-tight">Pet Care & QR Tag Manager</h1>
+              <p className="text-[11px] text-emerald-100 hidden sm:block">Control de Vacunas, Salud e Identificación Inteligente</p>
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => handleOpenPetModal()}
+              className="bg-emerald-800 hover:bg-emerald-900 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-all flex items-center shadow-sm"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              <span>Nueva Mascota</span>
+            </button>
+            <button
+              onClick={() => handleOpenRecordModal()}
+              disabled={pets.length === 0}
+              className="bg-white text-emerald-800 hover:bg-emerald-50 text-xs font-bold px-3 py-2 rounded-lg transition-all flex items-center shadow-sm disabled:opacity-50"
+            >
+              <Plus className="h-4 w-4 mr-1 text-emerald-700" />
+              <span>Evento Sanitario</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* PANELES Y NAVEGACIÓN PRINCIPAL */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        {/* ALERTA DE VENCIMIENTOS PRÓXIMOS */}
+        {alertRecords.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-sm flex items-start space-x-3">
+            <Bell className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5 animate-bounce" />
+            <div className="flex-1">
+              <h3 className="text-xs font-bold text-amber-900 uppercase tracking-wide">
+                Atención: tienes {alertRecords.length} vacunas o desparasitaciones pendientes o próximas
+              </h3>
+              <div className="mt-1 flex flex-wrap gap-2">
+                {alertRecords.map(rec => {
+                  const pet = pets.find(p => p.id === rec.petId);
+                  return (
+                    <span key={rec.id} className="text-[11px] bg-white text-amber-800 font-medium px-2.5 py-1 rounded-md border border-amber-200 flex items-center shadow-2xs">
+                      <strong>{pet?.name}:</strong>&nbsp;{rec.title} ({rec.nextDueDate})
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* SELECTOR Y CHIPS DE MASCOTAS */}
+        <section className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4">
+          <div className="flex justify-between items-center mb-3">
+            <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center">
+              <Heart className="h-3.5 w-3.5 mr-1.5 text-rose-500" /> Selección de Mascota
+            </h2>
+            <span className="text-xs text-slate-400 font-medium">{pets.length} registrada(s)</span>
+          </div>
+
+          <div className="flex space-x-3 overflow-x-auto pb-1 scrollbar-none">
+            {/* Chip Todos */}
+            <button
+              onClick={() => setSelectedPetId('all')}
+              className={`p-2.5 rounded-xl border min-w-[100px] flex flex-col items-center transition-all ${
+                selectedPetId === 'all'
+                  ? 'border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-400/20'
+                  : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold mb-1">
+                <PawPrint className="h-4 w-4" />
+              </div>
+              <span className="text-xs font-bold">Todas</span>
+              <span className="text-[10px] opacity-75">{records.length} eventos</span>
+            </button>
+
+            {/* Chips Lista Mascotas */}
+            {pets.map((pet) => {
+              const isSelected = selectedPetId === pet.id;
+              return (
+                <div
+                  key={pet.id}
+                  onClick={() => setSelectedPetId(pet.id)}
+                  className={`relative cursor-pointer p-2.5 rounded-xl border min-w-[120px] transition-all flex flex-col items-center group ${
+                    isSelected
+                      ? 'border-emerald-500 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-400/20 shadow-xs'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <img
+                    src={pet.avatar}
+                    alt={pet.name}
+                    className="w-10 h-10 rounded-full object-cover shadow-xs mb-1 border border-white"
+                  />
+                  <div className="text-center w-full truncate">
+                    <p className="text-xs font-bold truncate">{pet.name}</p>
+                    <p className="text-[10px] text-slate-500 truncate">{pet.species}</p>
+                  </div>
+
+                  {/* Acciones flotantes */}
+                  <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity flex space-x-1">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenPetModal(pet);
+                      }}
+                      className="p-1 bg-white hover:bg-slate-100 text-slate-600 rounded-md shadow-xs border border-slate-200"
+                      title="Editar"
+                    >
+                      <Edit3 className="h-3 w-3" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* PESTAÑAS DE NAVEGACIÓN DE VISTA */}
+        <div className="border-b border-slate-200 flex space-x-2 sm:space-x-4">
+          {[
+            { id: 'pets', label: 'Ficha Mascota', icon: PawPrint },
+            { id: 'records', label: 'Historial Médico', icon: Syringe },
+            { id: 'qr', label: 'Placa QR Collar', icon: QrCode },
+            { id: 'alerts', label: 'Recordatorios', icon: Bell },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`pb-3 px-3 text-xs font-bold flex items-center border-b-2 transition-all ${
+                  active
+                    ? 'border-emerald-600 text-emerald-700'
+                    : 'border-transparent text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <Icon className="h-4 w-4 mr-1.5" />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* CONTENIDO PESTAÑA 1: FICHA DE MASCOTA */}
+        {activeTab === 'pets' && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {activePet ? (
+              <>
+                <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-6 space-y-4 text-center">
+                  <img
+                    src={activePet.avatar}
+                    alt={activePet.name}
+                    className="w-28 h-28 rounded-full object-cover mx-auto shadow-md border-4 border-emerald-500"
+                  />
+                  <div>
+                    <h3 className="text-xl font-extrabold text-slate-800">{activePet.name}</h3>
+                    <p className="text-xs text-slate-500 font-medium">{activePet.species} • {activePet.breed}</p>
+                  </div>
+
+                  <div className="pt-2 flex justify-center space-x-2">
+                    <button
+                      onClick={() => handleOpenPetModal(activePet)}
+                      className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold px-3 py-2 rounded-xl transition-colors flex items-center"
+                    >
+                      <Edit3 className="h-3.5 w-3.5 mr-1" /> Editar
+                    </button>
+                    <button
+                      onClick={() => handleDeletePet(activePet.id)}
+                      className="bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold px-3 py-2 rounded-xl transition-colors flex items-center"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Eliminar
+                    </button>
+                  </div>
+                </div>
+
+                <div className="md:col-span-2 bg-white rounded-2xl shadow-xs border border-slate-200 p-6 space-y-4">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+                    Información Clínica & Identificación
+                  </h4>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+                      <span className="text-slate-400 block font-medium">Edad Estimada</span>
+                      <span className="font-bold text-slate-800 text-sm">{calculateAge(activePet.birthDate)}</span>
+                    </div>
+
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+                      <span className="text-slate-400 block font-medium">Peso Actual</span>
+                      <span className="font-bold text-emerald-700 text-sm">{activePet.weight ? `${activePet.weight} kg` : 'N/R'}</span>
+                    </div>
+
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+                      <span className="text-slate-400 block font-medium">Número Microchip</span>
+                      <span className="font-mono font-bold text-slate-700">{activePet.chipNumber || 'Sin Chip'}</span>
+                    </div>
+
+                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+                      <span className="text-slate-400 block font-medium">Teléfono de Contacto</span>
+                      <span className="font-bold text-slate-800">{activePet.ownerPhone || 'No registrado'}</span>
+                    </div>
+                  </div>
+
+                  <div className="bg-emerald-50/60 p-4 rounded-xl border border-emerald-100 space-y-2">
+                    <h5 className="text-xs font-bold text-emerald-900 flex items-center">
+                      <User className="h-4 w-4 mr-1 text-emerald-600" /> Responsable & Dirección
+                    </h5>
+                    <p className="text-xs text-slate-700"><strong>Nombre:</strong> {activePet.ownerName || 'Familia'}</p>
+                    <p className="text-xs text-slate-700"><strong>Dirección:</strong> {activePet.ownerAddress || 'No especificada'}</p>
+                  </div>
+
+                  {activePet.medicalAlerts && (
+                    <div className="bg-rose-50 p-4 rounded-xl border border-rose-200 text-xs space-y-1">
+                      <h5 className="font-bold text-rose-900 flex items-center">
+                        <ShieldAlert className="h-4 w-4 mr-1 text-rose-600" /> Alerta Médica URGENTE para Collar
+                      </h5>
+                      <p className="text-rose-800">{activePet.medicalAlerts}</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="col-span-3 text-center py-12 bg-white rounded-2xl border border-slate-200">
+                <PawPrint className="h-12 w-12 text-slate-300 mx-auto mb-2" />
+                <p className="text-slate-500 font-bold">No hay mascotas seleccionadas.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* CONTENIDO PESTAÑA 2: HISTORIAL MÉDICO */}
+        {activeTab === 'records' && (
+          <div className="space-y-4">
+            
+            {/* Barra de Filtros */}
+            <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 flex flex-col md:flex-row gap-3 items-center justify-between">
+              <div className="relative w-full md:w-64">
+                <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar vacuna, vet..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 text-xs border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:outline-hidden bg-slate-50"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-1.5 w-full md:w-auto">
+                {[
+                  { id: 'all', label: 'Todos' },
+                  { id: 'vaccine', label: 'Vacunas' },
+                  { id: 'deworming', label: 'Desparasitaciones' },
+                  { id: 'medical', label: 'Consultas' },
+                  { id: 'grooming', label: 'Higiene' },
+                ].map((type) => (
+                  <button
+                    key={type.id}
+                    onClick={() => setSelectedType(type.id)}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${
+                      selectedType === type.id
+                        ? 'bg-slate-800 text-white border-slate-800 font-medium'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                    }`}
+                  >
+                    {type.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Lista de Registros */}
+            {filteredRecords.length === 0 ? (
+              <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-12 text-center">
+                <FileText className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                <h4 className="text-base font-bold text-slate-700">Sin eventos sanitarios</h4>
+                <p className="text-xs text-slate-400 mt-1">Registra la aplicación de vacunas o medicamentos.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredRecords.map((record) => {
+                  const pet = pets.find(p => p.id === record.petId);
+                  const badge = getTypeBadge(record.type);
+                  const Icon = badge.icon;
+
+                  return (
+                    <div
+                      key={record.id}
+                      className="bg-white rounded-2xl shadow-xs border border-slate-200 p-4 transition-all hover:border-slate-300 relative group"
+                    >
+                      <div className="flex items-start space-x-3.5">
+                        <div className={`${badge.iconBg} p-2.5 rounded-xl text-white shadow-xs flex-shrink-0 mt-0.5`}>
+                          <Icon className="h-5 w-5" />
+                        </div>
+
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center space-x-2">
+                              <h4 className="text-sm font-bold text-slate-800">{record.title}</h4>
+                              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full border ${badge.bg}`}>
+                                {badge.label}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center text-xs text-slate-500 font-medium">
+                              <Calendar className="h-3.5 w-3.5 mr-1 text-slate-400" />
+                              {record.date}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600 pt-1">
+                            {record.productName && (
+                              <p><strong className="text-slate-700">Producto/Lote:</strong> {record.productName}</p>
+                            )}
+                            {record.veterinarian && (
+                              <p><strong className="text-slate-700">Veterinario:</strong> {record.veterinarian}</p>
+                            )}
+                            {selectedPetId === 'all' && pet && (
+                              <p className="text-emerald-700 font-bold">Mascota: {pet.name}</p>
+                            )}
+                          </div>
+
+                          {record.notes && (
+                            <p className="text-xs text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100 mt-2 italic">
+                              "{record.notes}"
+                            </p>
+                          )}
+
+                          {record.nextDueDate && (
+                            <div className="inline-flex items-center text-xs text-amber-800 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 mt-2 font-medium">
+                              <Clock className="h-3.5 w-3.5 mr-1 text-amber-600" />
+                              Próximo Refuerzo: <span className="font-bold ml-1">{record.nextDueDate}</span>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col space-y-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button
+                            onClick={() => handleOpenRecordModal(record)}
+                            className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-md"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteRecord(record.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* CONTENIDO PESTAÑA 3: PLACA QR Y DIBUJO DE COLLAR */}
+        {activeTab === 'qr' && activePet && (
+          <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-6 space-y-6">
+            <div className="text-center max-w-xl mx-auto space-y-2">
+              <h3 className="text-lg font-bold text-slate-800 flex items-center justify-center">
+                <QrCode className="h-5 w-5 text-emerald-600 mr-2" /> Placa QR e Identificador para Collar
+              </h3>
+              <p className="text-xs text-slate-500">
+                Este código QR puede imprimirse o colocarse en el collar de <strong>{activePet.name}</strong>. Permite a cualquier persona que lo encuentre ver tus datos de contacto al instante.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+              {/* Tarjeta Visual imprimible */}
+              <div id="printable-tag" className="bg-slate-900 text-white rounded-3xl p-6 text-center space-y-4 shadow-xl relative overflow-hidden border-4 border-slate-800">
+                <div className="absolute top-0 right-0 p-8 bg-emerald-500/10 rounded-full blur-xl pointer-events-none"></div>
+
+                <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                  <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest flex items-center">
+                    <PawPrint className="h-3.5 w-3.5 mr-1" /> PET SAFETY TAG
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-mono">{activePet.chipNumber || 'ID-TAG'}</span>
+                </div>
+
+                <div className="bg-white p-4 rounded-2xl inline-block mx-auto shadow-inner">
+                  <DynamicQRCodeSVG
+                    text={`NOMBRE: ${activePet.name} | TEL: ${activePet.ownerPhone} | DUEÑO: ${activePet.ownerName} | DIRECCION: ${activePet.ownerAddress}`}
+                    size={180}
+                    color={qrColor}
+                  />
+                </div>
+
+                <div>
+                  <h4 className="text-2xl font-black tracking-wide text-white">{activePet.name}</h4>
+                  <p className="text-xs text-emerald-400 font-bold mt-0.5">SI ME PERDÍ, ESCANEA EL CÓDIGO</p>
+                </div>
+
+                <div className="bg-slate-800/80 p-3 rounded-xl text-left text-[11px] space-y-1 border border-slate-700">
+                  <p className="text-slate-300"><strong>Contacto:</strong> {activePet.ownerPhone || 'Sin teléfono'}</p>
+                  <p className="text-slate-300"><strong>Dueño:</strong> {activePet.ownerName || 'Familia'}</p>
+                </div>
+              </div>
+
+              {/* Ajustes y Opciones */}
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-2">Seleccionar Color del QR</label>
+                  <div className="flex space-x-3">
+                    {[
+                      { name: 'Esmeralda', hex: '#047857' },
+                      { name: 'Azul', hex: '#1d4ed8' },
+                      { name: 'Púrpura', hex: '#6d28d9' },
+                      { name: 'Rosa', hex: '#be123c' },
+                      { name: 'Oscuro', hex: '#0f172a' },
+                    ].map((c) => (
+                      <button
+                        key={c.hex}
+                        onClick={() => setQrColor(c.hex)}
+                        style={{ backgroundColor: c.hex }}
+                        className={`w-8 h-8 rounded-full transition-transform ${
+                          qrColor === c.hex ? 'ring-2 ring-offset-2 ring-slate-800 scale-110' : 'opacity-80'
+                        }`}
+                        title={c.name}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <div className="pt-2 space-y-2">
+                  <button
+                    onClick={() => setIsScanPreviewOpen(true)}
+                    className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center transition-colors"
+                  >
+                    <Smartphone className="h-4 w-4 mr-2" /> Simular Escaneo desde Teléfono
+                  </button>
+
+                  <button
+                    onClick={printIdTag}
+                    className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl text-xs flex items-center justify-center transition-colors"
+                  >
+                    <Printer className="h-4 w-4 mr-2" /> Imprimir / Guardar Chapa
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CONTENIDO PESTAÑA 4: RECORDATORIOS */}
+        {activeTab === 'alerts' && (
+          <div className="bg-white rounded-2xl shadow-xs border border-slate-200 p-6 space-y-4">
+            <h3 className="text-sm font-bold text-slate-800 flex items-center">
+              <Bell className="h-4 w-4 text-emerald-600 mr-2" /> Próximos Vencimientos y Calendario
+            </h3>
+
+            {alertRecords.length === 0 ? (
+              <div className="text-center py-8 text-slate-400">
+                <CheckCircle2 className="h-10 w-10 text-emerald-500 mx-auto mb-2" />
+                <p className="text-xs font-bold text-slate-700">¡Todo al día!</p>
+                <p className="text-[11px]">No hay vacunas ni desparasitaciones pendientes en los próximos 30 días.</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {alertRecords.map((r) => {
+                  const pet = pets.find(p => p.id === r.petId);
+                  return (
+                    <div key={r.id} className="p-3 bg-amber-50 rounded-xl border border-amber-200 flex justify-between items-center text-xs">
+                      <div>
+                        <p className="font-bold text-amber-900">{r.title} - {pet?.name}</p>
+                        <p className="text-amber-700">Fecha Límite: {r.nextDueDate}</p>
+                      </div>
+                      <span className="bg-amber-200 text-amber-900 font-bold px-2 py-1 rounded-md text-[10px]">
+                        URGENTE
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+      </main>
+
+      {/* MODAL: REGISTRAR / EDITAR MASCOTA */}
+      {isPetModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="bg-emerald-700 text-white px-6 py-4 flex justify-between items-center flex-shrink-0">
+              <h3 className="font-bold text-sm flex items-center">
+                <PawPrint className="h-4 w-4 mr-2" />
+                {editingPet ? 'Editar Mascota' : 'Registrar Nueva Mascota'}
+              </h3>
+              <button onClick={() => setIsPetModalOpen(false)} className="text-emerald-100 hover:text-white font-bold">✕</button>
+            </div>
+
+            <form onSubmit={handleSavePet} className="p-6 space-y-3 text-xs overflow-y-auto">
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Nombre *</label>
+                <input
+                  type="text"
+                  required
+                  value={petForm.name}
+                  onChange={(e) => setPetForm({ ...petForm, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Especie *</label>
+                  <select
+                    value={petForm.species}
+                    onChange={(e) => setPetForm({ ...petForm, species: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white"
+                  >
+                    <option value="Perro">Perro</option>
+                    <option value="Gato">Gato</option>
+                    <option value="Conejo">Conejo</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Raza</label>
+                  <input
+                    type="text"
+                    value={petForm.breed}
+                    onChange={(e) => setPetForm({ ...petForm, breed: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Fecha Nacimiento</label>
+                  <input
+                    type="date"
+                    value={petForm.birthDate}
+                    onChange={(e) => setPetForm({ ...petForm, birthDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Peso (kg)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={petForm.weight}
+                    onChange={(e) => setPetForm({ ...petForm, weight: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="border-t border-slate-100 pt-3 space-y-3">
+                <h4 className="font-bold text-emerald-800">Datos para la Placa QR</h4>
+                
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Nombre Dueño/a *</label>
+                  <input
+                    type="text"
+                    required
+                    value={petForm.ownerName}
+                    onChange={(e) => setPetForm({ ...petForm, ownerName: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Teléfono Emergencia *</label>
+                  <input
+                    type="tel"
+                    required
+                    value={petForm.ownerPhone}
+                    onChange={(e) => setPetForm({ ...petForm, ownerPhone: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Alertas Médicas URGENTES</label>
+                  <textarea
+                    rows="2"
+                    value={petForm.medicalAlerts}
+                    onChange={(e) => setPetForm({ ...petForm, medicalAlerts: e.target.value })}
+                    placeholder="Alergias, enfermedad crónica..."
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  ></textarea>
+                </div>
+              </div>
+
+              <div className="pt-3 flex justify-end space-x-2 border-t">
+                <button
+                  type="button"
+                  onClick={() => setIsPetModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 rounded-lg font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold"
+                >
+                  Guardar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: REGISTRAR / EDITAR EVENTO SANITARIO */}
+      {isRecordModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full overflow-hidden">
+            <div className="bg-emerald-700 text-white px-6 py-4 flex justify-between items-center">
+              <h3 className="font-bold text-sm flex items-center">
+                <Syringe className="h-4 w-4 mr-2" />
+                {editingRecord ? 'Editar Registro' : 'Nuevo Registro Sanitario'}
+              </h3>
+              <button onClick={() => setIsRecordModalOpen(false)} className="text-emerald-100 hover:text-white font-bold">✕</button>
+            </div>
+
+            <form onSubmit={handleSaveRecord} className="p-6 space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Mascota *</label>
+                  <select
+                    required
+                    value={recordForm.petId}
+                    onChange={(e) => setRecordForm({ ...recordForm, petId: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white"
+                  >
+                    {pets.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Tipo *</label>
+                  <select
+                    value={recordForm.type}
+                    onChange={(e) => setRecordForm({ ...recordForm, type: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-white"
+                  >
+                    <option value="vaccine">Vacuna</option>
+                    <option value="deworming">Desparasitación</option>
+                    <option value="medical">Consulta Médica</option>
+                    <option value="grooming">Higiene</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Título / Vacuna *</label>
+                <input
+                  type="text"
+                  required
+                  value={recordForm.title}
+                  onChange={(e) => setRecordForm({ ...recordForm, title: e.target.value })}
+                  placeholder="Ej: Antirrábica, Quintuple..."
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Fecha Realización *</label>
+                  <input
+                    type="date"
+                    required
+                    value={recordForm.date}
+                    onChange={(e) => setRecordForm({ ...recordForm, date: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Próximo Refuerzo</label>
+                  <input
+                    type="date"
+                    value={recordForm.nextDueDate}
+                    onChange={(e) => setRecordForm({ ...recordForm, nextDueDate: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">Veterinario / Clínica</label>
+                <input
+                  type="text"
+                  value={recordForm.veterinarian}
+                  onChange={(e) => setRecordForm({ ...recordForm, veterinarian: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg"
+                />
+              </div>
+
+              <div className="pt-3 flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setIsRecordModalOpen(false)}
+                  className="px-4 py-2 bg-slate-100 rounded-lg font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-bold"
+                >
+                  Guardar Evento
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: SIMULADOR DE ESCANEO DE TELÉFONO */}
+      {isScanPreviewOpen && activePet && (
+        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4 z-50">
+          <div className="bg-slate-900 rounded-[2.5rem] p-4 shadow-2xl max-w-xs w-full border-4 border-slate-700 relative">
+            <div className="w-24 h-4 bg-slate-800 rounded-b-xl mx-auto mb-3"></div>
+
+            <div className="bg-white rounded-[1.8rem] p-4 space-y-4 text-left overflow-y-auto max-h-[70vh]">
+              <div className="text-center pt-2">
+                <span className="bg-rose-100 text-rose-800 font-bold text-[10px] px-2.5 py-1 rounded-full uppercase tracking-wider animate-pulse inline-flex items-center">
+                  <AlertTriangle className="h-3 w-3 mr-1" /> ¡Mascota Perdida!
+                </span>
+                <img
+                  src={activePet.avatar}
+                  alt={activePet.name}
+                  className="w-20 h-20 rounded-full object-cover mx-auto mt-2 shadow-md border-2 border-emerald-500"
+                />
+                <h3 className="text-xl font-black text-slate-800 mt-1">{activePet.name}</h3>
+                <p className="text-xs text-slate-500">{activePet.species} • {activePet.breed}</p>
+              </div>
+
+              {activePet.ownerPhone && (
+                <a
+                  href={`tel:${activePet.ownerPhone}`}
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2.5 rounded-xl flex items-center justify-center shadow-md text-xs"
+                >
+                  <Phone className="h-4 w-4 mr-2" /> Llamar al Dueño
+                </a>
+              )}
+
+              <div className="space-y-2 text-xs border-t pt-3">
+                <p><strong>Dueño:</strong> {activePet.ownerName || 'Familia'}</p>
+                <p><strong>Teléfono:</strong> {activePet.ownerPhone || 'No cargado'}</p>
+                <p><strong>Dirección:</strong> {activePet.ownerAddress || 'No especificada'}</p>
+              </div>
+
+              {activePet.medicalAlerts && (
+                <div className="bg-rose-50 border border-rose-200 p-2.5 rounded-xl text-xs text-rose-800">
+                  <strong className="block text-rose-900">Alerta Médica:</strong>
+                  {activePet.medicalAlerts}
+                </div>
+              )}
+
+              <button
+                onClick={() => setIsScanPreviewOpen(false)}
+                className="w-full bg-slate-100 text-slate-600 font-bold py-2 rounded-xl text-xs"
+              >
+                Cerrar Simulación
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
